@@ -5,6 +5,15 @@ import { Form, redirect, useActionData, useNavigation } from "react-router-dom";
 import { createOrder } from "../../services/apiRestaurant";
 import Button from "../../UI/Button";
 import { useSelector } from "react-redux";
+import EmptyCart from "../cart/EmptyCart";
+import store from "../../store.js";
+import {
+  clearCart,
+  getCartTotalQuantity,
+  getTotalCartPrice,
+} from "../cart/cartSlice";
+import { useState } from "react";
+import { formatCurrency } from "../../utils/helpers";
 
 // https://uibakery.io/regex-library/phone-number
 const isValidPhone = (str) =>
@@ -12,38 +21,42 @@ const isValidPhone = (str) =>
     str
   );
 
-const fakeCart = [
-  {
-    pizzaId: 12,
-    name: "Mediterranean",
-    quantity: 2,
-    unitPrice: 16,
-    totalPrice: 32,
-  },
-  {
-    pizzaId: 6,
-    name: "Vegetale",
-    quantity: 1,
-    unitPrice: 13,
-    totalPrice: 13,
-  },
-  {
-    pizzaId: 11,
-    name: "Spinach and Mushroom",
-    quantity: 1,
-    unitPrice: 15,
-    totalPrice: 15,
-  },
-];
+// const fakeCart = [
+//   {
+//     pizzaId: 12,
+//     name: "Mediterranean",
+//     quantity: 2,
+//     unitPrice: 16,
+//     totalPrice: 32,
+//   },
+//   {
+//     pizzaId: 6,
+//     name: "Vegetale",
+//     quantity: 1,
+//     unitPrice: 13,
+//     totalPrice: 13,
+//   },
+//   {
+//     pizzaId: 11,
+//     name: "Spinach and Mushroom",
+//     quantity: 1,
+//     unitPrice: 15,
+//     totalPrice: 15,
+//   },
+// ];
 
 function CreateOrder() {
   const username = useSelector((state) => state.user.username);
-  // const [withPriority, setWithPriority] = useState(false);
+  const [withPriority, setWithPriority] = useState(false);
   const formError = useActionData();
-  const cart = fakeCart;
+  const cart = useSelector((state) => state.cart.cart);
   const navigation = useNavigation();
-  console.log(navigation);
   const isSubmitting = navigation.state === "submitting";
+  const cartTotalPrice = useSelector(getTotalCartPrice);
+  let priority = withPriority ? cartTotalPrice * 0.2 : 0;
+  const totalPrice = cartTotalPrice + priority;
+
+  if (!cart.length) return <EmptyCart />;
   return (
     <div className="py-6 px-4">
       <h2 className="mb-8 text-xl font-bold">Ready to order? Let's go!</h2>
@@ -89,9 +102,8 @@ function CreateOrder() {
             type="checkbox"
             name="priority"
             id="priority"
-
-            // value={withPriority}
-            // onChange={(e) => setWithPriority(e.target.checked)}
+            value={withPriority}
+            onChange={(e) => setWithPriority(e.target.checked)}
           />
           <label htmlFor="priority" className="font-medium">
             Want to yo give your order priority ?
@@ -101,7 +113,9 @@ function CreateOrder() {
         <div>
           <input type="hidden" name="cart" value={JSON.stringify(cart)} />
           <Button type="primary" disabled={isSubmitting}>
-            {isSubmitting ? "Placing Order..." : "Order Now"}
+            {isSubmitting
+              ? "Placing Order..."
+              : `Order Now ${formatCurrency(totalPrice)}`}
           </Button>
         </div>
       </Form>
@@ -116,7 +130,7 @@ export async function action({ request }) {
   const order = {
     ...data,
     cart: JSON.parse(data.cart),
-    priority: data.priority === "on",
+    priority: data.priority === "true",
   };
   console.log(order);
   const error = {};
@@ -128,6 +142,9 @@ export async function action({ request }) {
   // If everyThing is okay ,create new Order
   const newOrder = await createOrder(order);
   // console.log("newOrder", newOrder);
+
+  // here we are importing the store useDispatch function uses in ReactJs Component not in Regular Component
+  store.dispatch(clearCart());
   return redirect(`/order/${newOrder.id}`);
 }
 export { CreateOrder };
